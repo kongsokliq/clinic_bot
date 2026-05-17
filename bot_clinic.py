@@ -98,13 +98,13 @@ def get_all_patients():
 
     ws = wb["Patients"]
 
-    data = []
+    patients = []
 
     for row in ws.iter_rows(min_row=2, values_only=True):
 
-        data.append(row)
+        patients.append(row)
 
-    return data
+    return patients
 
 # =====================================================
 # SEARCH PATIENT
@@ -161,7 +161,7 @@ def delete_patient(name):
     return deleted
 
 # =====================================================
-# SAVE IMAGE PATH
+# SAVE IMAGE TO EXCEL
 # =====================================================
 
 def save_image_to_excel(name, image_path):
@@ -525,11 +525,9 @@ def main():
         )
     )
 
-   print("🤖 Bot Starting...")
-
-app.run_polling(
-    drop_pending_updates=True
-)
+    app.run_polling(
+        drop_pending_updates=True
+    )
 
 # =====================================================
 # START BOT
