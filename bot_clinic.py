@@ -22,6 +22,9 @@ from telegram.ext import (
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+if not TOKEN:
+    raise ValueError("❌ BOT_TOKEN not found")
+
 ADMIN_IDS = [387739135]
 
 FILE_NAME = "patients.xlsx"
@@ -35,7 +38,7 @@ IMAGE_FOLDER = "patient_images"
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 # =====================================================
-# CREATE EXCEL
+# CREATE EXCEL FILE
 # =====================================================
 
 def init_excel():
@@ -43,11 +46,12 @@ def init_excel():
     if not os.path.exists(FILE_NAME):
 
         wb = Workbook()
+
         ws = wb.active
 
         ws.title = "Patients"
 
-        headers = [
+        ws.append([
             "Name",
             "Age",
             "Gender",
@@ -58,9 +62,7 @@ def init_excel():
             "VisitDate",
             "Note",
             "Image"
-        ]
-
-        ws.append(headers)
+        ])
 
         wb.save(FILE_NAME)
 
@@ -79,6 +81,7 @@ def is_admin(user_id):
 def save_patient(data):
 
     wb = load_workbook(FILE_NAME)
+
     ws = wb["Patients"]
 
     ws.append(data)
@@ -92,14 +95,16 @@ def save_patient(data):
 def get_all_patients():
 
     wb = load_workbook(FILE_NAME)
+
     ws = wb["Patients"]
 
-    patients = []
+    data = []
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-        patients.append(row)
 
-    return patients
+        data.append(row)
+
+    return data
 
 # =====================================================
 # SEARCH PATIENT
@@ -108,6 +113,7 @@ def get_all_patients():
 def search_patient(keyword):
 
     wb = load_workbook(FILE_NAME)
+
     ws = wb["Patients"]
 
     results = []
@@ -115,6 +121,7 @@ def search_patient(keyword):
     for row in ws.iter_rows(min_row=2, values_only=True):
 
         if keyword.lower() in str(row[0]).lower():
+
             results.append(row)
 
     return results
@@ -126,6 +133,7 @@ def search_patient(keyword):
 def delete_patient(name):
 
     wb = load_workbook(FILE_NAME)
+
     ws = wb["Patients"]
 
     deleted = False
@@ -139,11 +147,13 @@ def delete_patient(name):
             image_path = ws.cell(row=row, column=10).value
 
             if image_path and os.path.exists(image_path):
+
                 os.remove(image_path)
 
             ws.delete_rows(row)
 
             deleted = True
+
             break
 
     wb.save(FILE_NAME)
@@ -157,6 +167,7 @@ def delete_patient(name):
 def save_image_to_excel(name, image_path):
 
     wb = load_workbook(FILE_NAME)
+
     ws = wb["Patients"]
 
     for row in range(2, ws.max_row + 1):
@@ -181,35 +192,47 @@ def main_menu():
 
     keyboard = [
 
-        [InlineKeyboardButton(
-            "➕ Add Patient",
-            callback_data="add_patient"
-        )],
+        [
+            InlineKeyboardButton(
+                "➕ Add Patient",
+                callback_data="add_patient"
+            )
+        ],
 
-        [InlineKeyboardButton(
-            "📋 Patient List",
-            callback_data="list_patients"
-        )],
+        [
+            InlineKeyboardButton(
+                "📋 Patient List",
+                callback_data="list_patients"
+            )
+        ],
 
-        [InlineKeyboardButton(
-            "🔍 Search Patient",
-            callback_data="search_patient"
-        )],
+        [
+            InlineKeyboardButton(
+                "🔍 Search Patient",
+                callback_data="search_patient"
+            )
+        ],
 
-        [InlineKeyboardButton(
-            "📷 Upload Image",
-            callback_data="upload_image"
-        )],
+        [
+            InlineKeyboardButton(
+                "📷 Upload Image",
+                callback_data="upload_image"
+            )
+        ],
 
-        [InlineKeyboardButton(
-            "🗑 Delete Patient",
-            callback_data="delete_patient"
-        )],
+        [
+            InlineKeyboardButton(
+                "🗑 Delete Patient",
+                callback_data="delete_patient"
+            )
+        ],
 
-        [InlineKeyboardButton(
-            "📥 Download Excel",
-            callback_data="download_excel"
-        )]
+        [
+            InlineKeyboardButton(
+                "📥 Download Excel",
+                callback_data="download_excel"
+            )
+        ]
     ]
 
     return InlineKeyboardMarkup(keyboard)
@@ -227,6 +250,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "❌ Access denied"
         )
+
         return
 
     await update.message.reply_text(
@@ -241,6 +265,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
+
     await query.answer()
 
     data = query.data
@@ -315,7 +340,7 @@ async def button_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # =====================================================
-# HANDLE TEXT
+# HANDLE MESSAGE
 # =====================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -323,16 +348,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if not is_admin(user_id):
+
         return
 
     action = context.user_data.get("action")
 
     text = update.message.text.strip()
 
-    # =================================================
     # SAVE PATIENT
-    # =================================================
-
     if action == "save_patient":
 
         try:
@@ -340,7 +363,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data = [x.strip() for x in text.split(",")]
 
             if len(data) != 9:
-                raise Exception()
+
+                raise ValueError()
 
             data.append("")
 
@@ -358,10 +382,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data["action"] = None
 
-    # =================================================
     # SEARCH
-    # =================================================
-
     elif action == "search_patient":
 
         results = search_patient(text)
@@ -369,12 +390,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not results:
 
             await update.message.reply_text(
-                "❌ Not found"
+                "❌ Patient not found"
             )
 
         else:
 
-            msg = ""
+            msg = "🔍 Search Result\n\n"
 
             for r in results:
 
@@ -394,10 +415,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data["action"] = None
 
-    # =================================================
     # DELETE
-    # =================================================
-
     elif action == "delete_patient":
 
         success = delete_patient(text)
@@ -405,7 +423,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if success:
 
             await update.message.reply_text(
-                "✅ Deleted successfully"
+                "✅ Patient deleted"
             )
 
         else:
@@ -416,10 +434,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data["action"] = None
 
-    # =================================================
     # IMAGE NAME
-    # =================================================
-
     elif action == "upload_image_name":
 
         context.user_data["patient_name"] = text
@@ -439,6 +454,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.user_data.get("action")
 
     if action != "waiting_photo":
+
         return
 
     patient_name = context.user_data.get("patient_name")
@@ -483,6 +499,8 @@ def main():
 
     init_excel()
 
+    print("🤖 Bot Starting...")
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(
@@ -507,7 +525,7 @@ def main():
         )
     )
 
-    print("🤖 Bot Running 24/24...")
+    print("✅ Bot Running 24/24...")
 
     app.run_polling()
 
@@ -516,4 +534,5 @@ def main():
 # =====================================================
 
 if __name__ == "__main__":
+
     main()
