@@ -525,9 +525,11 @@ def main():
         )
     )
 
-    print("✅ Bot Running 24/24...")
+   print("🤖 Bot Starting...")
 
-    app.run_polling()
+app.run_polling(
+    drop_pending_updates=True
+)
 
 # =====================================================
 # START BOT
