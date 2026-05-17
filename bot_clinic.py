@@ -98,13 +98,13 @@ def get_all_patients():
 
     ws = wb["Patients"]
 
-    patients = []
+    data = []
 
     for row in ws.iter_rows(min_row=2, values_only=True):
 
-        patients.append(row)
+        data.append(row)
 
-    return patients
+    return data
 
 # =====================================================
 # SEARCH PATIENT
@@ -161,7 +161,7 @@ def delete_patient(name):
     return deleted
 
 # =====================================================
-# SAVE IMAGE TO EXCEL
+# SAVE IMAGE PATH
 # =====================================================
 
 def save_image_to_excel(name, image_path):
@@ -499,18 +499,31 @@ def main():
 
     init_excel()
 
-    print("🤖 Bot Starting...")
+    print("🤖 Bot Starting Webhook...")
+
+    PORT = int(os.environ.get("PORT", 10000))
+
+    RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
+
+    if not RENDER_URL:
+
+        raise ValueError(
+            "❌ RENDER_EXTERNAL_URL not found"
+        )
 
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # COMMAND
     app.add_handler(
         CommandHandler("start", start)
     )
 
+    # BUTTON
     app.add_handler(
         CallbackQueryHandler(button_router)
     )
 
+    # PHOTO
     app.add_handler(
         MessageHandler(
             filters.PHOTO,
@@ -518,6 +531,7 @@ def main():
         )
     )
 
+    # TEXT
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -525,8 +539,12 @@ def main():
         )
     )
 
-    app.run_polling(
-        drop_pending_updates=True
+    print("✅ Webhook Running...")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"{RENDER_URL}/{TOKEN}"
     )
 
 # =====================================================
