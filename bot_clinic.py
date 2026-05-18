@@ -38,6 +38,9 @@ from telegram.ext import (
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+if not TOKEN:
+    TOKEN = "8703254616:AAEsHBheplvD4yNT5hZSuvj5ZkRYGpkzzLQ"
+
 RENDER_URL = os.getenv(
     "RENDER_EXTERNAL_URL"
 )
