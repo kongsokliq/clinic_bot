@@ -1,45 +1,87 @@
+# =========================================================
+# PROFESSIONAL CLINIC MANAGEMENT BOT
+# RENDER WEBHOOK VERSION (STABLE)
+# =========================================================
+
+# INSTALL:
+# pip install python-telegram-bot==20.7 openpyxl
+
+# RENDER START COMMAND:
+# python bot.py
+
+# =========================================================
+# IMPORT
+# =========================================================
+
 import os
+
+from datetime import datetime
+
 from openpyxl import Workbook, load_workbook
 
 from telegram import (
     Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
+    ReplyKeyboardMarkup
 )
 
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    CallbackQueryHandler,
     MessageHandler,
     ContextTypes,
     filters
 )
 
-# =====================================================
-# CONFIG
-# =====================================================
+# =========================================================
+# TOKEN & WEBHOOK
+# =========================================================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+RENDER_URL = os.getenv(
+    "RENDER_EXTERNAL_URL"
+)
+
+PORT = int(
+    os.environ.get("PORT", 10000)
+)
+
 if not TOKEN:
-    raise ValueError("❌ BOT_TOKEN not found")
 
-ADMIN_IDS = [387739135]
+    raise ValueError(
+        "❌ BOT_TOKEN NOT FOUND"
+    )
 
-FILE_NAME = "patients.xlsx"
+if not RENDER_URL:
+
+    raise ValueError(
+        "❌ RENDER_EXTERNAL_URL NOT FOUND"
+    )
+
+# =========================================================
+# ADMIN
+# =========================================================
+
+ADMIN_IDS = [
+    387739135
+]
+
+# =========================================================
+# FILES
+# =========================================================
+
+FILE_NAME = "clinic_data.xlsx"
 
 IMAGE_FOLDER = "patient_images"
 
-# =====================================================
-# CREATE IMAGE FOLDER
-# =====================================================
+os.makedirs(
+    IMAGE_FOLDER,
+    exist_ok=True
+)
 
-os.makedirs(IMAGE_FOLDER, exist_ok=True)
-
-# =====================================================
-# CREATE EXCEL FILE
-# =====================================================
+# =========================================================
+# CREATE EXCEL
+# =========================================================
 
 def init_excel():
 
@@ -52,6 +94,7 @@ def init_excel():
         ws.title = "Patients"
 
         ws.append([
+            "No",
             "Name",
             "Age",
             "Gender",
@@ -59,96 +102,166 @@ def init_excel():
             "Address",
             "Diagnosis",
             "Treatment",
+            "MedicineList",
             "VisitDate",
+            "AppointmentDate",
+            "FollowUp",
             "Note",
             "Image"
         ])
 
         wb.save(FILE_NAME)
 
-# =====================================================
+# =========================================================
 # CHECK ADMIN
-# =====================================================
+# =========================================================
 
 def is_admin(user_id):
 
     return user_id in ADMIN_IDS
 
-# =====================================================
-# SAVE PATIENT
-# =====================================================
+# =========================================================
+# OPEN EXCEL
+# =========================================================
 
-def save_patient(data):
+def get_sheet():
 
     wb = load_workbook(FILE_NAME)
 
     ws = wb["Patients"]
+
+    return wb, ws
+
+# =========================================================
+# DATE VALIDATION
+# =========================================================
+
+def validate_date(date_text):
+
+    try:
+
+        datetime.strptime(
+            date_text,
+            "%d.%m.%Y"
+        )
+
+        return True
+
+    except:
+
+        return False
+
+# =========================================================
+# NEXT NUMBER
+# =========================================================
+
+def get_next_no():
+
+    wb, ws = get_sheet()
+
+    return ws.max_row
+
+# =========================================================
+# SAVE PATIENT
+# =========================================================
+
+def save_patient(data):
+
+    wb, ws = get_sheet()
 
     ws.append(data)
 
     wb.save(FILE_NAME)
 
-# =====================================================
-# GET ALL PATIENTS
-# =====================================================
+# =========================================================
+# GET PATIENTS
+# =========================================================
 
 def get_all_patients():
 
-    wb = load_workbook(FILE_NAME)
+    wb, ws = get_sheet()
 
-    ws = wb["Patients"]
+    patients = []
 
-    data = []
+    for row in ws.iter_rows(
+        min_row=2,
+        values_only=True
+    ):
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
+        patients.append(row)
 
-        data.append(row)
+    return patients
 
-    return data
-
-# =====================================================
+# =========================================================
 # SEARCH PATIENT
-# =====================================================
+# =========================================================
 
 def search_patient(keyword):
 
-    wb = load_workbook(FILE_NAME)
+    wb, ws = get_sheet()
 
-    ws = wb["Patients"]
+    keyword = keyword.lower()
 
     results = []
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    for row in ws.iter_rows(
+        min_row=2,
+        values_only=True
+    ):
 
-        if keyword.lower() in str(row[0]).lower():
+        name = str(row[1]).lower()
+
+        phone = str(row[4]).lower()
+
+        if keyword in name or keyword in phone:
 
             results.append(row)
 
     return results
 
-# =====================================================
+# =========================================================
 # DELETE PATIENT
-# =====================================================
+# =========================================================
 
-def delete_patient(name):
+def delete_patient(keyword):
 
-    wb = load_workbook(FILE_NAME)
+    wb, ws = get_sheet()
 
-    ws = wb["Patients"]
+    keyword = keyword.lower()
 
     deleted = False
 
-    for row in range(2, ws.max_row + 1):
+    for row in range(
+        2,
+        ws.max_row + 1
+    ):
 
-        patient_name = ws.cell(row=row, column=1).value
+        name = str(
+            ws.cell(
+                row=row,
+                column=2
+            ).value
+        ).lower()
 
-        if str(patient_name).lower() == name.lower():
+        phone = str(
+            ws.cell(
+                row=row,
+                column=5
+            ).value
+        ).lower()
 
-            image_path = ws.cell(row=row, column=10).value
+        if keyword in name or keyword in phone:
 
-            if image_path and os.path.exists(image_path):
+            image_path = ws.cell(
+                row=row,
+                column=14
+            ).value
 
-                os.remove(image_path)
+            if image_path:
+
+                if os.path.exists(image_path):
+
+                    os.remove(image_path)
 
             ws.delete_rows(row)
 
@@ -160,23 +273,185 @@ def delete_patient(name):
 
     return deleted
 
-# =====================================================
-# SAVE IMAGE PATH
-# =====================================================
+# =========================================================
+# FOLLOW UP
+# =========================================================
 
-def save_image_to_excel(name, image_path):
+def update_followup(
+    keyword,
+    followup,
+    medicine,
+    visit_date,
+    note
+):
 
-    wb = load_workbook(FILE_NAME)
+    wb, ws = get_sheet()
 
-    ws = wb["Patients"]
+    keyword = keyword.lower()
 
-    for row in range(2, ws.max_row + 1):
+    updated = False
 
-        patient_name = ws.cell(row=row, column=1).value
+    for row in range(
+        2,
+        ws.max_row + 1
+    ):
 
-        if str(patient_name).lower() == name.lower():
+        name = str(
+            ws.cell(
+                row=row,
+                column=2
+            ).value
+        ).lower()
 
-            ws.cell(row=row, column=10).value = image_path
+        phone = str(
+            ws.cell(
+                row=row,
+                column=5
+            ).value
+        ).lower()
+
+        if keyword in name or keyword in phone:
+
+            ws.cell(
+                row=row,
+                column=12
+            ).value = followup
+
+            ws.cell(
+                row=row,
+                column=9
+            ).value = medicine
+
+            ws.cell(
+                row=row,
+                column=10
+            ).value = visit_date
+
+            ws.cell(
+                row=row,
+                column=13
+            ).value = note
+
+            updated = True
+
+            break
+
+    wb.save(FILE_NAME)
+
+    return updated
+
+# =========================================================
+# SET APPOINTMENT
+# =========================================================
+
+def set_appointment(
+    keyword,
+    appointment_date
+):
+
+    wb, ws = get_sheet()
+
+    keyword = keyword.lower()
+
+    updated = False
+
+    for row in range(
+        2,
+        ws.max_row + 1
+    ):
+
+        name = str(
+            ws.cell(
+                row=row,
+                column=2
+            ).value
+        ).lower()
+
+        phone = str(
+            ws.cell(
+                row=row,
+                column=5
+            ).value
+        ).lower()
+
+        if keyword in name or keyword in phone:
+
+            ws.cell(
+                row=row,
+                column=11
+            ).value = appointment_date
+
+            updated = True
+
+            break
+
+    wb.save(FILE_NAME)
+
+    return updated
+
+# =========================================================
+# TODAY APPOINTMENTS
+# =========================================================
+
+def today_appointments():
+
+    wb, ws = get_sheet()
+
+    today = datetime.now().strftime(
+        "%d.%m.%Y"
+    )
+
+    results = []
+
+    for row in ws.iter_rows(
+        min_row=2,
+        values_only=True
+    ):
+
+        if str(row[10]) == today:
+
+            results.append(row)
+
+    return results
+
+# =========================================================
+# SAVE IMAGE
+# =========================================================
+
+def save_image_path(
+    keyword,
+    image_path
+):
+
+    wb, ws = get_sheet()
+
+    keyword = keyword.lower()
+
+    for row in range(
+        2,
+        ws.max_row + 1
+    ):
+
+        name = str(
+            ws.cell(
+                row=row,
+                column=2
+            ).value
+        ).lower()
+
+        phone = str(
+            ws.cell(
+                row=row,
+                column=5
+            ).value
+        ).lower()
+
+        if keyword in name or keyword in phone:
+
+            ws.cell(
+                row=row,
+                column=14
+            ).value = image_path
 
             wb.save(FILE_NAME)
 
@@ -184,205 +459,284 @@ def save_image_to_excel(name, image_path):
 
     return False
 
-# =====================================================
-# MAIN MENU
-# =====================================================
+# =========================================================
+# MENU
+# =========================================================
 
-def main_menu():
+def reply_menu():
 
     keyboard = [
 
         [
-            InlineKeyboardButton(
-                "➕ Add Patient",
-                callback_data="add_patient"
-            )
+            "➕ Add Patient",
+            "📋 Patient List"
         ],
 
         [
-            InlineKeyboardButton(
-                "📋 Patient List",
-                callback_data="list_patients"
-            )
+            "🔍 Search Patient",
+            "📝 Follow Up"
         ],
 
         [
-            InlineKeyboardButton(
-                "🔍 Search Patient",
-                callback_data="search_patient"
-            )
+            "📅 Appointments",
+            "📅 Today Appointments"
         ],
 
         [
-            InlineKeyboardButton(
-                "📷 Upload Image",
-                callback_data="upload_image"
-            )
+            "📷 Upload Image",
+            "🗑 Delete Patient"
         ],
 
         [
-            InlineKeyboardButton(
-                "🗑 Delete Patient",
-                callback_data="delete_patient"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "📥 Download Excel",
-                callback_data="download_excel"
-            )
+            "📥 Download Excel"
         ]
     ]
 
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
 
-# =====================================================
+# =========================================================
 # START
-# =====================================================
+# =========================================================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
-    user_id = update.effective_user.id
-
-    if not is_admin(user_id):
+    if not is_admin(
+        update.effective_user.id
+    ):
 
         await update.message.reply_text(
-            "❌ Access denied"
+            "❌ Access Denied"
         )
 
         return
 
     await update.message.reply_text(
-        "🏥 Clinic Management System",
-        reply_markup=main_menu()
+        "🏥 Clinic Management Bot",
+        reply_markup=reply_menu()
     )
 
-# =====================================================
-# BUTTON ROUTER
-# =====================================================
+# =========================================================
+# HANDLE MESSAGE
+# =========================================================
 
-async def button_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
-    query = update.callback_query
+    if not is_admin(
+        update.effective_user.id
+    ):
 
-    await query.answer()
+        return
 
-    data = query.data
+    text = update.message.text.strip()
 
-    # ADD PATIENT
-    if data == "add_patient":
+    action = context.user_data.get(
+        "action"
+    )
 
-        context.user_data["action"] = "save_patient"
+    # =====================================================
+    # MENU
+    # =====================================================
 
-        await query.message.reply_text(
+    if text == "➕ Add Patient":
+
+        context.user_data["action"] = "add_patient"
+
+        await update.message.reply_text(
             "Send:\n\n"
-            "name,age,gender,phone,address,diagnosis,treatment,visitdate,note"
+            "name,age,gender,phone,address,"
+            "diagnosis,treatment,"
+            "medicine_list,visit_date\n\n"
+            "Date Format:\n"
+            "18.05.2026"
         )
 
-    # LIST PATIENTS
-    elif data == "list_patients":
+        return
+
+    elif text == "📋 Patient List":
 
         patients = get_all_patients()
 
         if not patients:
 
-            text = "❌ No patients"
+            await update.message.reply_text(
+                "❌ No Patients"
+            )
 
-        else:
+            return
 
-            text = "📋 Patient List\n\n"
+        msg = "📋 Patient List\n\n"
 
-            for p in patients:
+        for p in patients:
 
-                text += (
-                    f"👤 {p[0]}\n"
-                    f"📞 {p[3]}\n"
-                    f"🩺 {p[5]}\n"
-                    f"📅 {p[7]}\n\n"
-                )
+            msg += (
+                f"🔢 No: {p[0]}\n"
+                f"👤 {p[1]}\n"
+                f"📞 {p[4]}\n"
+                f"📅 Visit: {p[9]}\n\n"
+            )
 
-        await query.message.reply_text(text)
-
-    # SEARCH
-    elif data == "search_patient":
-
-        context.user_data["action"] = "search_patient"
-
-        await query.message.reply_text(
-            "🔍 Send patient name"
+        await update.message.reply_text(
+            msg
         )
-
-    # DELETE
-    elif data == "delete_patient":
-
-        context.user_data["action"] = "delete_patient"
-
-        await query.message.reply_text(
-            "🗑 Send patient name"
-        )
-
-    # UPLOAD IMAGE
-    elif data == "upload_image":
-
-        context.user_data["action"] = "upload_image_name"
-
-        await query.message.reply_text(
-            "📷 Send patient name first"
-        )
-
-    # DOWNLOAD EXCEL
-    elif data == "download_excel":
-
-        await query.message.reply_document(
-            document=open(FILE_NAME, "rb"),
-            filename="patients.xlsx"
-        )
-
-# =====================================================
-# HANDLE MESSAGE
-# =====================================================
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user_id = update.effective_user.id
-
-    if not is_admin(user_id):
 
         return
 
-    action = context.user_data.get("action")
+    elif text == "🔍 Search Patient":
 
-    text = update.message.text.strip()
+        context.user_data["action"] = "search_patient"
 
-    # SAVE PATIENT
-    if action == "save_patient":
+        await update.message.reply_text(
+            "Send patient name or phone"
+        )
+
+        return
+
+    elif text == "📝 Follow Up":
+
+        context.user_data["action"] = "follow_up"
+
+        await update.message.reply_text(
+            "Send:\n\n"
+            "name_or_phone,followup,"
+            "medicine_list,visit_date,note"
+        )
+
+        return
+
+    elif text == "📅 Appointments":
+
+        context.user_data["action"] = "appointments"
+
+        await update.message.reply_text(
+            "Send:\n\n"
+            "name_or_phone,appointment_date\n\n"
+            "Example:\n"
+            "012345678,18.05.2026"
+        )
+
+        return
+
+    elif text == "📅 Today Appointments":
+
+        appointments = today_appointments()
+
+        if not appointments:
+
+            await update.message.reply_text(
+                "❌ No Appointments Today"
+            )
+
+            return
+
+        msg = "📅 Today Appointments\n\n"
+
+        for a in appointments:
+
+            msg += (
+                f"👤 {a[1]}\n"
+                f"📞 {a[4]}\n"
+                f"📅 {a[10]}\n\n"
+            )
+
+        await update.message.reply_text(
+            msg
+        )
+
+        return
+
+    elif text == "🗑 Delete Patient":
+
+        context.user_data["action"] = "delete_patient"
+
+        await update.message.reply_text(
+            "Send patient name or phone"
+        )
+
+        return
+
+    elif text == "📷 Upload Image":
+
+        context.user_data["action"] = "upload_image"
+
+        await update.message.reply_text(
+            "Send patient name or phone"
+        )
+
+        return
+
+    elif text == "📥 Download Excel":
+
+        await update.message.reply_document(
+            document=open(FILE_NAME, "rb"),
+            filename="clinic_data.xlsx"
+        )
+
+        return
+
+    # =====================================================
+    # ADD PATIENT
+    # =====================================================
+
+    if action == "add_patient":
 
         try:
 
-            data = [x.strip() for x in text.split(",")]
+            data = [
+                x.strip()
+                for x in text.split(",")
+            ]
 
             if len(data) != 9:
 
                 raise ValueError()
 
-            data.append("")
+            if not validate_date(data[8]):
 
-            save_patient(data)
+                await update.message.reply_text(
+                    "❌ Invalid Date"
+                )
+
+                return
+
+            no = get_next_no()
+
+            full_data = [
+                no
+            ] + data + [
+                "",
+                "",
+                "",
+                ""
+            ]
+
+            save_patient(full_data)
 
             await update.message.reply_text(
-                "✅ Patient saved"
+                f"✅ Patient Saved\n\n"
+                f"🔢 No: {no}"
             )
 
         except:
 
             await update.message.reply_text(
-                "❌ Invalid format"
+                "❌ Invalid Format"
             )
 
         context.user_data["action"] = None
 
+    # =====================================================
     # SEARCH
+    # =====================================================
+
     elif action == "search_patient":
 
         results = search_patient(text)
@@ -390,32 +744,131 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not results:
 
             await update.message.reply_text(
-                "❌ Patient not found"
+                "❌ Patient Not Found"
             )
 
         else:
 
-            msg = "🔍 Search Result\n\n"
-
             for r in results:
 
-                msg += (
-                    f"👤 Name: {r[0]}\n"
-                    f"🎂 Age: {r[1]}\n"
-                    f"⚧ Gender: {r[2]}\n"
-                    f"📞 Phone: {r[3]}\n"
-                    f"🏠 Address: {r[4]}\n"
-                    f"🩺 Diagnosis: {r[5]}\n"
-                    f"💊 Treatment: {r[6]}\n"
-                    f"📅 Visit: {r[7]}\n"
-                    f"📝 Note: {r[8]}\n\n"
+                msg = (
+                    f"🔢 No: {r[0]}\n"
+                    f"👤 {r[1]}\n"
+                    f"📞 {r[4]}\n"
+                    f"🩺 {r[6]}\n"
+                    f"💉 {r[7]}\n"
+                    f"💊 {r[8]}\n"
+                    f"📅 Visit: {r[9]}\n"
+                    f"📆 Appointment: {r[10]}\n"
+                    f"📝 Follow Up: {r[11]}\n"
+                    f"📌 Note: {r[12]}"
                 )
 
-            await update.message.reply_text(msg)
+                await update.message.reply_text(
+                    msg
+                )
 
         context.user_data["action"] = None
 
+    # =====================================================
+    # FOLLOW UP
+    # =====================================================
+
+    elif action == "follow_up":
+
+        try:
+
+            data = [
+                x.strip()
+                for x in text.split(",")
+            ]
+
+            if len(data) != 5:
+
+                raise ValueError()
+
+            success = update_followup(
+                data[0],
+                data[1],
+                data[2],
+                data[3],
+                data[4]
+            )
+
+            if success:
+
+                await update.message.reply_text(
+                    "✅ Follow Up Updated"
+                )
+
+            else:
+
+                await update.message.reply_text(
+                    "❌ Patient Not Found"
+                )
+
+        except:
+
+            await update.message.reply_text(
+                "❌ Invalid Format"
+            )
+
+        context.user_data["action"] = None
+
+    # =====================================================
+    # APPOINTMENT
+    # =====================================================
+
+    elif action == "appointments":
+
+        try:
+
+            data = [
+                x.strip()
+                for x in text.split(",")
+            ]
+
+            if len(data) != 2:
+
+                raise ValueError()
+
+            if not validate_date(data[1]):
+
+                await update.message.reply_text(
+                    "❌ Invalid Date"
+                )
+
+                return
+
+            success = set_appointment(
+                data[0],
+                data[1]
+            )
+
+            if success:
+
+                await update.message.reply_text(
+                    "✅ Appointment Saved"
+                )
+
+            else:
+
+                await update.message.reply_text(
+                    "❌ Patient Not Found"
+                )
+
+        except:
+
+            await update.message.reply_text(
+                "❌ Invalid Format"
+            )
+
+        context.user_data["action"] = None
+
+    # =====================================================
     # DELETE
+    # =====================================================
+
     elif action == "delete_patient":
 
         success = delete_patient(text)
@@ -423,77 +876,93 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if success:
 
             await update.message.reply_text(
-                "✅ Patient deleted"
+                "✅ Patient Deleted"
             )
 
         else:
 
             await update.message.reply_text(
-                "❌ Patient not found"
+                "❌ Patient Not Found"
             )
 
         context.user_data["action"] = None
 
-    # IMAGE NAME
-    elif action == "upload_image_name":
+    # =====================================================
+    # UPLOAD IMAGE
+    # =====================================================
 
-        context.user_data["patient_name"] = text
+    elif action == "upload_image":
 
-        context.user_data["action"] = "waiting_photo"
+        context.user_data[
+            "patient_keyword"
+        ] = text
+
+        context.user_data[
+            "action"
+        ] = "waiting_photo"
 
         await update.message.reply_text(
             "📤 Send image now"
         )
 
-# =====================================================
+# =========================================================
 # HANDLE PHOTO
-# =====================================================
+# =========================================================
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_photo(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
-    action = context.user_data.get("action")
+    action = context.user_data.get(
+        "action"
+    )
 
     if action != "waiting_photo":
 
         return
 
-    patient_name = context.user_data.get("patient_name")
+    keyword = context.user_data.get(
+        "patient_keyword"
+    )
 
     photo = update.message.photo[-1]
 
     file = await photo.get_file()
 
-    filename = f"{patient_name}.jpg"
+    filename = f"{keyword}.jpg"
 
     filepath = os.path.join(
         IMAGE_FOLDER,
         filename
     )
 
-    await file.download_to_drive(filepath)
+    await file.download_to_drive(
+        filepath
+    )
 
-    success = save_image_to_excel(
-        patient_name,
+    success = save_image_path(
+        keyword,
         filepath
     )
 
     if success:
 
         await update.message.reply_text(
-            "✅ Image uploaded"
+            "✅ Image Uploaded"
         )
 
     else:
 
         await update.message.reply_text(
-            "❌ Patient not found"
+            "❌ Patient Not Found"
         )
 
     context.user_data["action"] = None
 
-# =====================================================
+# =========================================================
 # MAIN
-# =====================================================
+# =========================================================
 
 def main():
 
@@ -501,29 +970,17 @@ def main():
 
     print("🤖 Bot Starting Webhook...")
 
-    PORT = int(os.environ.get("PORT", 10000))
+    app = ApplicationBuilder().token(
+        TOKEN
+    ).build()
 
-    RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
-
-    if not RENDER_URL:
-
-        raise ValueError(
-            "❌ RENDER_EXTERNAL_URL not found"
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start
         )
-
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    # COMMAND
-    app.add_handler(
-        CommandHandler("start", start)
     )
 
-    # BUTTON
-    app.add_handler(
-        CallbackQueryHandler(button_router)
-    )
-
-    # PHOTO
     app.add_handler(
         MessageHandler(
             filters.PHOTO,
@@ -531,7 +988,6 @@ def main():
         )
     )
 
-    # TEXT
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -544,12 +1000,13 @@ def main():
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=f"{RENDER_URL}/{TOKEN}"
+        webhook_url=f"{RENDER_URL}/{TOKEN}",
+        drop_pending_updates=True
     )
 
-# =====================================================
-# START BOT
-# =====================================================
+# =========================================================
+# START
+# =========================================================
 
 if __name__ == "__main__":
 
