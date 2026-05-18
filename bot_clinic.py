@@ -1,13 +1,10 @@
 # =========================================================
 # PROFESSIONAL CLINIC MANAGEMENT BOT
-# RENDER WEBHOOK VERSION (STABLE)
+# WEBHOOK VERSION FOR RENDER
 # =========================================================
 
 # INSTALL:
 # pip install python-telegram-bot==20.7 openpyxl
-
-# RENDER START COMMAND:
-# python bot.py
 
 # =========================================================
 # IMPORT
@@ -33,33 +30,22 @@ from telegram.ext import (
 )
 
 # =========================================================
-# TOKEN & WEBHOOK
+# TOKEN
 # =========================================================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    TOKEN = "8703254616:AAEsHBheplvD4yNT5hZSuvj5ZkRYGpkzzLQ"
+    raise ValueError("❌ BOT_TOKEN NOT FOUND")
 
-RENDER_URL = os.getenv(
-    "RENDER_EXTERNAL_URL"
-)
+# =========================================================
+# RENDER URL
+# =========================================================
 
-PORT = int(
-    os.environ.get("PORT", 10000)
-)
-
-if not TOKEN:
-
-    raise ValueError(
-        "❌ BOT_TOKEN NOT FOUND"
-    )
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
 
 if not RENDER_URL:
-
-    raise ValueError(
-        "❌ RENDER_EXTERNAL_URL NOT FOUND"
-    )
+    raise ValueError("❌ RENDER_EXTERNAL_URL NOT FOUND")
 
 # =========================================================
 # ADMIN
@@ -77,10 +63,7 @@ FILE_NAME = "clinic_data.xlsx"
 
 IMAGE_FOLDER = "patient_images"
 
-os.makedirs(
-    IMAGE_FOLDER,
-    exist_ok=True
-)
+os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 # =========================================================
 # CREATE EXCEL
@@ -124,7 +107,7 @@ def is_admin(user_id):
     return user_id in ADMIN_IDS
 
 # =========================================================
-# OPEN EXCEL
+# LOAD SHEET
 # =========================================================
 
 def get_sheet():
@@ -136,7 +119,8 @@ def get_sheet():
     return wb, ws
 
 # =========================================================
-# DATE VALIDATION
+# VALIDATE DATE
+# FORMAT: DD.MM.YYYY
 # =========================================================
 
 def validate_date(date_text):
@@ -177,23 +161,23 @@ def save_patient(data):
     wb.save(FILE_NAME)
 
 # =========================================================
-# GET PATIENTS
+# GET ALL PATIENTS
 # =========================================================
 
 def get_all_patients():
 
     wb, ws = get_sheet()
 
-    patients = []
+    results = []
 
     for row in ws.iter_rows(
         min_row=2,
         values_only=True
     ):
 
-        patients.append(row)
+        results.append(row)
 
-    return patients
+    return results
 
 # =========================================================
 # SEARCH PATIENT
@@ -234,23 +218,14 @@ def delete_patient(keyword):
 
     deleted = False
 
-    for row in range(
-        2,
-        ws.max_row + 1
-    ):
+    for row in range(2, ws.max_row + 1):
 
         name = str(
-            ws.cell(
-                row=row,
-                column=2
-            ).value
+            ws.cell(row=row, column=2).value
         ).lower()
 
         phone = str(
-            ws.cell(
-                row=row,
-                column=5
-            ).value
+            ws.cell(row=row, column=5).value
         ).lower()
 
         if keyword in name or keyword in phone:
@@ -260,11 +235,9 @@ def delete_patient(keyword):
                 column=14
             ).value
 
-            if image_path:
+            if image_path and os.path.exists(image_path):
 
-                if os.path.exists(image_path):
-
-                    os.remove(image_path)
+                os.remove(image_path)
 
             ws.delete_rows(row)
 
@@ -277,7 +250,7 @@ def delete_patient(keyword):
     return deleted
 
 # =========================================================
-# FOLLOW UP
+# UPDATE FOLLOWUP
 # =========================================================
 
 def update_followup(
@@ -294,23 +267,14 @@ def update_followup(
 
     updated = False
 
-    for row in range(
-        2,
-        ws.max_row + 1
-    ):
+    for row in range(2, ws.max_row + 1):
 
         name = str(
-            ws.cell(
-                row=row,
-                column=2
-            ).value
+            ws.cell(row=row, column=2).value
         ).lower()
 
         phone = str(
-            ws.cell(
-                row=row,
-                column=5
-            ).value
+            ws.cell(row=row, column=5).value
         ).lower()
 
         if keyword in name or keyword in phone:
@@ -358,23 +322,14 @@ def set_appointment(
 
     updated = False
 
-    for row in range(
-        2,
-        ws.max_row + 1
-    ):
+    for row in range(2, ws.max_row + 1):
 
         name = str(
-            ws.cell(
-                row=row,
-                column=2
-            ).value
+            ws.cell(row=row, column=2).value
         ).lower()
 
         phone = str(
-            ws.cell(
-                row=row,
-                column=5
-            ).value
+            ws.cell(row=row, column=5).value
         ).lower()
 
         if keyword in name or keyword in phone:
@@ -430,23 +385,14 @@ def save_image_path(
 
     keyword = keyword.lower()
 
-    for row in range(
-        2,
-        ws.max_row + 1
-    ):
+    for row in range(2, ws.max_row + 1):
 
         name = str(
-            ws.cell(
-                row=row,
-                column=2
-            ).value
+            ws.cell(row=row, column=2).value
         ).lower()
 
         phone = str(
-            ws.cell(
-                row=row,
-                column=5
-            ).value
+            ws.cell(row=row, column=5).value
         ).lower()
 
         if keyword in name or keyword in phone:
@@ -541,12 +487,10 @@ async def handle_message(
 
     text = update.message.text.strip()
 
-    action = context.user_data.get(
-        "action"
-    )
+    action = context.user_data.get("action")
 
     # =====================================================
-    # MENU
+    # ADD PATIENT
     # =====================================================
 
     if text == "➕ Add Patient":
@@ -558,11 +502,15 @@ async def handle_message(
             "name,age,gender,phone,address,"
             "diagnosis,treatment,"
             "medicine_list,visit_date\n\n"
-            "Date Format:\n"
+            "Date format:\n"
             "18.05.2026"
         )
 
         return
+
+    # =====================================================
+    # LIST
+    # =====================================================
 
     elif text == "📋 Patient List":
 
@@ -587,15 +535,17 @@ async def handle_message(
                 f"📅 Visit: {p[9]}\n\n"
             )
 
-        await update.message.reply_text(
-            msg
-        )
+        await update.message.reply_text(msg)
 
         return
 
+    # =====================================================
+    # SEARCH
+    # =====================================================
+
     elif text == "🔍 Search Patient":
 
-        context.user_data["action"] = "search_patient"
+        context.user_data["action"] = "search"
 
         await update.message.reply_text(
             "Send patient name or phone"
@@ -603,30 +553,46 @@ async def handle_message(
 
         return
 
+    # =====================================================
+    # FOLLOW UP
+    # =====================================================
+
     elif text == "📝 Follow Up":
 
-        context.user_data["action"] = "follow_up"
+        context.user_data["action"] = "followup"
 
         await update.message.reply_text(
             "Send:\n\n"
-            "name_or_phone,followup,"
-            "medicine_list,visit_date,note"
+            "name_or_phone,"
+            "followup,"
+            "medicine_list,"
+            "visit_date,"
+            "note"
         )
 
         return
+
+    # =====================================================
+    # APPOINTMENT
+    # =====================================================
 
     elif text == "📅 Appointments":
 
-        context.user_data["action"] = "appointments"
+        context.user_data["action"] = "appointment"
 
         await update.message.reply_text(
             "Send:\n\n"
-            "name_or_phone,appointment_date\n\n"
+            "name_or_phone,"
+            "appointment_date\n\n"
             "Example:\n"
-            "012345678,18.05.2026"
+            "Sok,18.05.2026"
         )
 
         return
+
+    # =====================================================
+    # TODAY APPOINTMENTS
+    # =====================================================
 
     elif text == "📅 Today Appointments":
 
@@ -650,31 +616,41 @@ async def handle_message(
                 f"📅 {a[10]}\n\n"
             )
 
-        await update.message.reply_text(
-            msg
-        )
+        await update.message.reply_text(msg)
 
         return
+
+    # =====================================================
+    # DELETE
+    # =====================================================
 
     elif text == "🗑 Delete Patient":
 
-        context.user_data["action"] = "delete_patient"
+        context.user_data["action"] = "delete"
 
         await update.message.reply_text(
             "Send patient name or phone"
         )
 
         return
+
+    # =====================================================
+    # UPLOAD IMAGE
+    # =====================================================
 
     elif text == "📷 Upload Image":
 
-        context.user_data["action"] = "upload_image"
+        context.user_data["action"] = "upload"
 
         await update.message.reply_text(
             "Send patient name or phone"
         )
 
         return
+
+    # =====================================================
+    # DOWNLOAD EXCEL
+    # =====================================================
 
     elif text == "📥 Download Excel":
 
@@ -686,7 +662,7 @@ async def handle_message(
         return
 
     # =====================================================
-    # ADD PATIENT
+    # ADD PATIENT ACTION
     # =====================================================
 
     if action == "add_patient":
@@ -737,10 +713,10 @@ async def handle_message(
         context.user_data["action"] = None
 
     # =====================================================
-    # SEARCH
+    # SEARCH ACTION
     # =====================================================
 
-    elif action == "search_patient":
+    elif action == "search":
 
         results = search_patient(text)
 
@@ -756,28 +732,26 @@ async def handle_message(
 
                 msg = (
                     f"🔢 No: {r[0]}\n"
-                    f"👤 {r[1]}\n"
-                    f"📞 {r[4]}\n"
-                    f"🩺 {r[6]}\n"
-                    f"💉 {r[7]}\n"
-                    f"💊 {r[8]}\n"
+                    f"👤 Name: {r[1]}\n"
+                    f"📞 Phone: {r[4]}\n"
+                    f"🩺 Diagnosis: {r[6]}\n"
+                    f"💉 Treatment: {r[7]}\n"
+                    f"💊 Medicine: {r[8]}\n"
                     f"📅 Visit: {r[9]}\n"
                     f"📆 Appointment: {r[10]}\n"
                     f"📝 Follow Up: {r[11]}\n"
                     f"📌 Note: {r[12]}"
                 )
 
-                await update.message.reply_text(
-                    msg
-                )
+                await update.message.reply_text(msg)
 
         context.user_data["action"] = None
 
     # =====================================================
-    # FOLLOW UP
+    # FOLLOWUP ACTION
     # =====================================================
 
-    elif action == "follow_up":
+    elif action == "followup":
 
         try:
 
@@ -819,10 +793,10 @@ async def handle_message(
         context.user_data["action"] = None
 
     # =====================================================
-    # APPOINTMENT
+    # APPOINTMENT ACTION
     # =====================================================
 
-    elif action == "appointments":
+    elif action == "appointment":
 
         try:
 
@@ -869,10 +843,10 @@ async def handle_message(
         context.user_data["action"] = None
 
     # =====================================================
-    # DELETE
+    # DELETE ACTION
     # =====================================================
 
-    elif action == "delete_patient":
+    elif action == "delete":
 
         success = delete_patient(text)
 
@@ -891,18 +865,14 @@ async def handle_message(
         context.user_data["action"] = None
 
     # =====================================================
-    # UPLOAD IMAGE
+    # UPLOAD ACTION
     # =====================================================
 
-    elif action == "upload_image":
+    elif action == "upload":
 
-        context.user_data[
-            "patient_keyword"
-        ] = text
+        context.user_data["patient_keyword"] = text
 
-        context.user_data[
-            "action"
-        ] = "waiting_photo"
+        context.user_data["action"] = "waiting_photo"
 
         await update.message.reply_text(
             "📤 Send image now"
@@ -917,9 +887,7 @@ async def handle_photo(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
-    action = context.user_data.get(
-        "action"
-    )
+    action = context.user_data.get("action")
 
     if action != "waiting_photo":
 
@@ -940,9 +908,7 @@ async def handle_photo(
         filename
     )
 
-    await file.download_to_drive(
-        filepath
-    )
+    await file.download_to_drive(filepath)
 
     success = save_image_path(
         keyword,
@@ -972,6 +938,10 @@ def main():
     init_excel()
 
     print("🤖 Bot Starting Webhook...")
+
+    PORT = int(
+        os.environ.get("PORT", 10000)
+    )
 
     app = ApplicationBuilder().token(
         TOKEN
@@ -1003,6 +973,7 @@ def main():
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
+        url_path=TOKEN,
         webhook_url=f"{RENDER_URL}/{TOKEN}",
         drop_pending_updates=True
     )
